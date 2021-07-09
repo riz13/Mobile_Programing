@@ -1,252 +1,202 @@
-import 'dart:convert';
-import'dart:ffi';
-
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:fff/komponen/config.dart';
 import 'package:fff/komponen/movieViewer.dart';
-import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 
-import 'komponen/movieViewer.dart';
+void main() => runApp(MoviesApp());
 
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
+class MoviesApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Movies App',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.indigo,
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: Home(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class Home extends StatefulWidget {
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  _HomeState createState() => _HomeState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _HomeState extends State<Home> {
+
+  ApiProvider apiProvider = ApiProvider();
+  Future<PopularMovies> popularMovies;
+
+  String imageBaseUrl = 'https://image.tmdb.org/t/p/w500';
+
+  @override
+  void initState() {
+    popularMovies =  apiProvider.getPopularMovies();
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        padding: const EdgeInsets.fromLTRB(16.0, 64.0, 16.0, 0.0),
-        child: Column(
-          children: [MovieViewer()],
-        ),
+      appBar: AppBar(
+        title: Text('Movies App'),
+      ),
+      body: FutureBuilder(
+        future: popularMovies,
+        builder: (BuildContext context, AsyncSnapshot snapshot) {
+          if (snapshot.hasData) {
+            print("Has Data: ${snapshot.hasData}");
+            return ListView.builder(
+              itemCount: snapshot.data.results.length,
+              itemBuilder: (BuildContext context, int index) {
+                return moviesItem(
+                    poster      : '$imageBaseUrl${snapshot.data.results[index].posterPath}',
+                    title       : '${snapshot.data.results[index].title}',
+                    date        : '${snapshot.data.results[index].releaseDate}',
+                    voteAverage : '${snapshot.data.results[index].voteAverage}',
+                    onTap: () {
+                      Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (context) => MovieDetail(
+                                movie: snapshot.data.results[index],
+                              ))
+                      );
+                    }
+                );
+              },
+            );
+          } else if (snapshot.hasError){
+            print("Has Error: ${snapshot.hasError}");
+            return Text('Error!!!');
+          } else {
+            print("Loading...");
+            return CircularProgressIndicator();
+          }
+        },
       ),
     );
   }
-}
 
-class MovieDetail extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState()  => _MovieDetailState();
-
-}
-
-class _MovieDetailState extends State<MovieDetail> {
-
-  List moviedetail = [];
-
-
-  void getfile() async {
-    var file = await getDetail();
-    setState(() {
-      moviedetail = file['results'];
-    });
-    print(file);
-
-  }
-
-
-  @override
-  Widget build(BuildContext context) {
-    getDetail();
-    getfile();
-    return Scaffold(
-      body: Container(
-        padding: const EdgeInsets.fromLTRB(16.0, 64.0, 16.0, 0.0),
-        child: Column(
-          children: [
-            Center(
-                child:
-                new Text(moviedetail[0], textAlign: TextAlign.center,style: TextStyle(
-                    fontSize: 25.0,
-                    fontWeight: FontWeight.bold
-                ))),
-            new Padding(padding: EdgeInsets.fromLTRB(0.0, 12.0, 0.0, 0.0)),
-            new Text("is the third Spirit to appear. Due to her brutal actions, she is referred to as the Worst Spirit. "
-                "She is also the first Spirit to appear as an antagonist in the Date A Live series. Kurumi is a girl with astonishing beauty as described by Shido Itsuka. "
-                "She appears to be elegant and has very polite manners. She has ivory skin and long, black hair usually tied in long twin tails. "
-                "Her right eye is red-tinted while her left eye appears as a golden, inorganic clock face. "
-                "The positions of the clock hands represent her remaining time and are covered by her bangs, which are only revealed when she transforms into her Spirit form.", style: TextStyle(
-                fontSize: 18.0
-            )),
-            new Padding(padding: EdgeInsets.fromLTRB(0.0, 15.0, 0.0, 0.0)),
-            new Image.asset("kurumi_tokisaki.jpg"),
-            Spacer(),
-            Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(0.0, 15.0, 0.0, 20.0),
-                  child: ElevatedButton(onPressed: () {
-                    Navigator.pop(context);
-                  },child: Text("Back")),
+  Widget moviesItem({String poster, String title, String date, String voteAverage, Function onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        margin: EdgeInsets.all(10),
+        child: Card(
+          child: Container(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  width: 120,
+                  child: CachedNetworkImage(
+                    imageUrl: poster,
+                  ),
+                ),
+                SizedBox(
+                  width: 20,
+                ),
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(
+                        top: 20
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(title,
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600
+                          ),
+                        ),
+                        SizedBox(
+                          height: 10,
+                        ),
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              Icons.calendar_today,
+                              size: 12,
+                            ),
+                            SizedBox(
+                              width: 5,
+                            ),
+                            Text(date),
+                          ],
+                        ),
+                        SizedBox(
+                          height: 10,
+                        ),
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              Icons.star,
+                              size: 12,
+                            ),
+                            SizedBox(
+                              width: 5,
+                            ),
+                            Text(voteAverage),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 )
               ],
-            )
-          ],
+            ),
+          ),
         ),
       ),
     );
   }
-  Future<Map> getDetail() async {
-    var detailurl = Uri.https(
-        MOVIE_URL_API, '/3/movie/508943', { 'api_key': API_KEY});
-    var response = await http.get(detailurl);
-    return json.decode(response.body);
-  }
 }
 
+class MovieDetail extends StatelessWidget {
 
-class MovieDetail2 extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState()  => _MovieDetail2State();
+  final Results movie;
 
-}
 
-class _MovieDetail2State extends State<MovieDetail2> {
+  const MovieDetail({Key key, this.movie}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
-    // TODO: implement build
+    String imageBaseUrl = 'https://image.tmdb.org/t/p/w500';
     return Scaffold(
+      appBar: AppBar(
+        title: Text('About ' + movie.title),
+      ),
       body: Container(
-        padding: const EdgeInsets.fromLTRB(16.0, 64.0, 16.0, 0.0),
-        child: Column(
-          children: [
-            Center(
-                child:
-                new Text("About Kurumi", textAlign: TextAlign.center,style: TextStyle(
-                    fontSize: 25.0,
-                    fontWeight: FontWeight.bold
-                ))),
-            new Padding(padding: EdgeInsets.fromLTRB(0.0, 12.0, 0.0, 0.0)),
-            new Text("is the third Spirit to appear. Due to her brutal actions, she is referred to as the Worst Spirit. "
-                "She is also the first Spirit to appear as an antagonist in the Date A Live series. Kurumi is a girl with astonishing beauty as described by Shido Itsuka. "
-                "She appears to be elegant and has very polite manners. She has ivory skin and long, black hair usually tied in long twin tails. "
-                "Her right eye is red-tinted while her left eye appears as a golden, inorganic clock face. "
-                "The positions of the clock hands represent her remaining time and are covered by her bangs, which are only revealed when she transforms into her Spirit form.", style: TextStyle(
-                fontSize: 18.0
-            )),
-            new Padding(padding: EdgeInsets.fromLTRB(0.0, 15.0, 0.0, 0.0)),
-            new Image.asset("kurumi_tokisaki.jpg"),
-            Spacer(),
-            Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(0.0, 15.0, 0.0, 20.0),
-                  child: ElevatedButton(onPressed: () {
-                    Navigator.pop(context);
-                  },child: Text("Back")),
-                )
-              ],
-            )
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: ListView(
+            children: [
+              new Text(movie.originalTitle, style: TextStyle(
+                fontSize:27.0,
+                fontWeight: FontWeight.bold
+              ),),
+              new Text(' '),
+              new Text('Release Date : '+ movie.releaseDate, textAlign : TextAlign.left, style: TextStyle(
+                fontSize: 22.0
+              ),),
+              new Text('Orignal Language : '+ movie.originalLanguage, textAlign : TextAlign.left, style: TextStyle(
+                  fontSize: 22.0
+              ),),
+              new Text('Overview : ', style: TextStyle(
+                fontSize: 22.0
+              ),),
+              new Text(movie.overview, style: TextStyle(
+                fontSize: 22.0
+              ),),
+
+              Image(image: new NetworkImage(imageBaseUrl + movie.posterPath,scale: 2))
+            ],
+          ),
         ),
       ),
     );
-
   }
-
-
 }
-
-class MovieDetail3 extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState()  => _MovieDetail3State();
-
-}
-
-class _MovieDetail3State extends State<MovieDetail3> {
-  @override
-
-
-
-  Widget build(BuildContext context) {
-    // TODO: implement build
-    return Scaffold(
-      body: Container(
-        padding: const EdgeInsets.fromLTRB(16.0, 64.0, 16.0, 0.0),
-        child: Column(
-          children: [
-            Center(
-                child:
-                new Text("About Genshin Impact", textAlign: TextAlign.center,style: TextStyle(
-                    fontSize: 25.0,
-                    fontWeight: FontWeight.bold
-                ))),
-            new Padding(padding: EdgeInsets.fromLTRB(0.0, 12.0, 0.0, 0.0)),
-            new Text("Genshin Impact[a] is an action role-playing game developed and published by miHoYo. "
-                "The game features an open-world environment and action-based battle system using elemental magic and character-switching, "
-                "and uses gacha game monetization for players to obtain new characters, weapons, and other resources. "
-                "The game is online-only and features a limited multiplayer mode allowing up to four players to play together. "
-                "It was released for Microsoft Windows, PlayStation 4, Android and iOS in September 2020. "
-                "Genshin Impact is also planned to release for the Nintendo Switch and the PlayStation 5. "
-                "The PlayStation 5 version will be released in April 2021.", style: TextStyle(
-                fontSize: 18.0
-            )),
-            new Padding(padding: EdgeInsets.fromLTRB(0.0, 15.0, 0.0, 0.0)),
-            new Image.asset("GI.jpg"),
-            Spacer(),
-            Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(0.0, 15.0, 0.0, 20.0),
-                  child: ElevatedButton(onPressed: () {
-                    Navigator.pop(context);
-                  },child: Text("Back")),
-                )
-              ],
-            )
-          ],
-        ),
-      ),
-    );
-
-  }
-
-
-
-
-}
-
